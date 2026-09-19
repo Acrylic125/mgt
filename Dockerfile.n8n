@@ -1,0 +1,6 @@
+FROM n8nio/n8n:latest
+
+# Extend here for system packages or global modules used by Execute Command / Code nodes.
+USER root
+RUN npm install -g tsx
+USER node
