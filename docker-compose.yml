@@ -1,7 +1,7 @@
 services:
   n8n:
     build:
-      context: .
+      context: ./provision
       dockerfile: Dockerfile.n8n
     ports:
       - "${N8N_PORT:-5678}:5678"
@@ -13,13 +13,66 @@ services:
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Singapore}
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
       - N8N_SECURE_COOKIE=false
-      # Allow workflow expressions to read $env.* (chat ID, etc.)
+      # Allow workflow expressions to read $env.* (chat ID, runner URL, etc.)
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - AUDIT_REPOS=${AUDIT_REPOS}
+      - N8N_RUNNER_SERVICE_URL=http://n8n-runner-service:3000
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./workflows:/home/node/workflows:ro
+      - ./provision/workflows:/home/node/workflows:ro
+    depends_on:
+      n8n-runner-service:
+        condition: service_healthy
     restart: unless-stopped
+
+  n8n-runner-service:
+    image: mgt-n8n-runner-service:latest
+    build:
+      context: ./services/n8n-runner-service
+    ports:
+      # Host 42xx is reserved for mgt sidecar services; n8n UI stays on 5678.
+      - "4200:3000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - DATABASE_PATH=/data/runners.sqlite
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - AUDIT_RUNNER_IMAGE=mgt-audit-runner:latest
+      - DOCKER_NETWORK=mgt_default
+      - N8N_RUNNER_SERVICE_URL=http://n8n-runner-service:3000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner_data:/data
+    depends_on:
+      audit-runner:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  # Image-only: compose builds it so n8n-runner-service can `docker run` it.
+  audit-runner:
+    image: mgt-audit-runner:latest
+    build:
+      context: ./services/audit-runner
+    entrypoint: ["true"]
+    restart: "no"
+    network_mode: none
+
+networks:
+  default:
+    name: mgt_default
 
 volumes:
   n8n_data:
+  runner_data:

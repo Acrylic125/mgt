@@ -1,20 +1,21 @@
-import 'dotenv/config';
-
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { WorkflowBuilder } from '@n8n/workflow-sdk';
+import { config as loadEnv } from 'dotenv';
 import { z } from 'zod';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOWS_DIR = path.join(ROOT, 'workflows');
 const N8N_CLI = path.join(ROOT, 'node_modules', '.bin', 'n8n-cli');
 
+loadEnv({ path: path.join(ROOT, '.env') });
+
 const env = z
   .object({
-    N8N_API_KEY: z.string().min(1, 'Copy .env.example → .env and set N8N_API_KEY'),
+    N8N_API_KEY: z.string().min(1, 'Copy provision/.env.example → provision/.env and set N8N_API_KEY'),
     N8N_URL: z.url().default('http://localhost:5678'),
   })
   .parse({
@@ -144,7 +145,7 @@ async function main() {
     if (filter) {
       console.error(`No workflow found for "${filter}"`);
     } else {
-      console.error('No workflows/*/workflow.ts found');
+      console.error('No provision/workflows/*/workflow.ts found');
     }
     process.exit(1);
   }

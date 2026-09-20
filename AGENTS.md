@@ -43,7 +43,7 @@ const config = ConfigSchema.parse(JSON.parse(raw));
 
 * Only comment to explain **why**: limitations, constraints, trade-offs, workarounds. Do not narrate what the code already says.
 
-* Group related files by workflow/domain under `workflows/<name>/` unless otherwise specified.
+* Group related files by workflow/domain under `provision/workflows/<name>/` unless otherwise specified.
 
 ## TypeScript
 
