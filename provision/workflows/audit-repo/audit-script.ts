@@ -1,4 +1,6 @@
 // n8n Code nodes stringify this body; AUDIT_REPOS is read from $env at runtime.
+// Collapse whitespace with /\\s+/ in this template. /\s+/ becomes /s+/ and
+// replaces the letter s ("itsme" → "it me").
 const jsCode = `
 const LF = String.fromCharCode(10);
 const CONCURRENCY = 3;
@@ -54,18 +56,25 @@ async function requestJson(method, url, body) {
   return httpRequest(options);
 }
 
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function formatTracked(repo, outcome) {
   if (outcome.kind === 'failed') {
     let message = 'unknown error';
     if (outcome.message) {
-      message = String(outcome.message).replace(/\s+/g, ' ').trim();
+      message = String(outcome.message).replace(/\\s+/g, ' ').trim();
     }
-    return '- ❌ ' + repo + ' ' + message;
+    return '- ❌ ' + escapeHtml(repo + ' ' + message);
   }
   if (outcome.mrUrl) {
-    return '- ⚠️ ' + repo + ' ' + outcome.mrUrl;
+    return '- ⚠️ ' + escapeHtml(repo + ' ' + outcome.mrUrl);
   }
-  return '- ✅ ' + repo + ' Audited with no issues';
+  return '- ✅ ' + escapeHtml(repo) + ' Audited with no issues';
 }
 
 async function auditRepo(repo) {
@@ -106,10 +115,18 @@ async function auditRepo(repo) {
       }
       if (status.status === 'completed') {
         let mrUrl;
+        let mrBody = '';
+        let mrBranch = 'audit';
         if (status.auditResult && status.auditResult.mrUrl) {
           mrUrl = status.auditResult.mrUrl;
+          if (typeof status.auditResult.mrBody === 'string') {
+            mrBody = status.auditResult.mrBody;
+          }
+          if (typeof status.auditResult.mrBranch === 'string') {
+            mrBranch = status.auditResult.mrBranch;
+          }
         }
-        return { kind: 'completed', mrUrl: mrUrl };
+        return { kind: 'completed', mrUrl: mrUrl, mrBody: mrBody, mrBranch: mrBranch };
       }
     } catch (error) {
       let message = 'failed to poll runner';
@@ -150,10 +167,19 @@ const run = async function () {
   const repos = parseAuditRepos($env.AUDIT_REPOS);
   const outcomes = await runWithLimit(repos, CONCURRENCY, auditRepo);
   const lines = ['**AUDIT REPOS**'];
+  const tasks = [];
   for (let i = 0; i < repos.length; i++) {
     lines.push(formatTracked(repos[i], outcomes[i]));
+    if (outcomes[i].mrUrl) {
+      tasks.push({
+        repo: repos[i],
+        mrUrl: outcomes[i].mrUrl,
+        mrBody: outcomes[i].mrBody,
+        mrBranch: outcomes[i].mrBranch,
+      });
+    }
   }
-  return [{ json: { text: lines.join(LF) } }];
+  return [{ json: { text: lines.join(LF), tasks: tasks } }];
 };
 
 return run();

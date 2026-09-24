@@ -10,6 +10,7 @@ const GitHubPullSchema = z
     html_url: z.string(),
     number: z.number(),
     title: z.string(),
+    body: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -99,6 +100,7 @@ export async function upsertAuditPullRequest(defaultBranch: string, body: string
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ body }),
       });
+      return { mrUrl: existing.html_url, mrBody: body };
     } catch (error) {
       let detail = "failed to update PR body";
       if (error instanceof Error) {
@@ -106,7 +108,7 @@ export async function upsertAuditPullRequest(defaultBranch: string, body: string
       }
       console.error(detail);
     }
-    return existing.html_url;
+    return { mrUrl: existing.html_url, mrBody: existing.body ?? "" };
   }
 
   const created = GitHubPullSchema.parse(
@@ -122,5 +124,5 @@ export async function upsertAuditPullRequest(defaultBranch: string, body: string
     }),
   );
 
-  return created.html_url;
+  return { mrUrl: created.html_url, mrBody: body };
 }

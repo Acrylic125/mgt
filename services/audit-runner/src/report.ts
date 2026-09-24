@@ -9,6 +9,8 @@ const ReportPayloadSchema = z.discriminatedUnion("status", [
     status: z.literal("completed"),
     auditResult: z.object({
       mrUrl: z.string().optional(),
+      mrBody: z.string().optional(),
+      mrBranch: z.string().optional(),
     }),
   }),
 ]);

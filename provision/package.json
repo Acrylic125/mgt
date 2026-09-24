@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "provision": "tsx scripts/provision.ts",
+    "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],

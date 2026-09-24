@@ -322,6 +322,13 @@ async function installDependencies(manager: "npm" | "pnpm", packageDir: string) 
   if (output.includes("ERR_PNPM_CI_NOT_IMPLEMENTED")) {
     canFallback = true;
   }
+  if (
+    manager === "pnpm" &&
+    (output.includes("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH") ||
+      output.includes("ERR_PNPM_OUTDATED_LOCKFILE"))
+  ) {
+    canFallback = true;
+  }
 
   if (!canFallback) {
     throw new Error(`${manager} install failed (exit ${ci.code})`);
@@ -428,6 +435,15 @@ export async function auditPackages(repoRoot: string) {
       const fixResult = await runAuditFix(manager, packageDir);
       if (fixResult.code !== 0) {
         notes.push(`${manager} audit fix failed (exit ${fixResult.code})`);
+      }
+
+      let installArgs = ["install"];
+      if (manager === "pnpm") {
+        installArgs = ["install", "--frozen-lockfile=false"];
+      }
+      const installResult = await runCommand(manager, installArgs, packageDir);
+      if (installResult.code !== 0) {
+        notes.push(`${manager} install after audit fix failed (exit ${installResult.code})`);
       }
 
       try {

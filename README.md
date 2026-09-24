@@ -11,8 +11,8 @@ n8n automation workflow orchestrator. Workflows are authored with `@n8n/workflow
 5. Complete owner setup in the UI.
 6. **Settings → n8n API → Create API key** → set `N8N_API_KEY` in `provision/.env`.
 7. `pnpm --dir provision provision`
-8. In n8n, the **Telegram API** credential is `Telegram account` (already on this instance).
-9. Open **Repo Audit**, confirm that credential is attached, then **activate** it (required for the 15-minute schedule). Use **Manual Trigger** or `POST http://localhost:5678/webhook/repo-audit` to test immediately.
+8. In **Repo Audit**, open **Create security task**, connect your Notion account, and give the integration access to the [Tasks board](https://app.notion.com/p/3e2d6e07011980088143c5c00782e27a). Provision again to attach the UI credential and enable the node.
+9. Confirm the **Telegram API** credential `Telegram account` is attached, then **activate** the workflow (required for the 15-minute schedule). Use **Manual Trigger** or `POST http://localhost:5678/webhook/repo-audit` to test immediately.
 
 ## Environment variables
 
@@ -45,7 +45,8 @@ The BotFather token is not an env var for Compose or provision. Paste it into th
 | Workflow | Credential |
 | --- | --- |
 | **Test** | **Telegram API** credential `Telegram Bot` — Access Token from [@BotFather](https://t.me/BotFather). |
-| **Repo Audit** | Same `Telegram Bot` credential. |
+| **Repo Audit** | **Telegram API** credential `Telegram account`. |
+| **Repo Audit** | **Notion API** credential selected directly on **Create security task**; grant that integration access to the Tasks database. |
 
 ## Commands
 
@@ -88,5 +89,9 @@ For each repo in `AUDIT_REPOS` (max 3 in flight):
 ```
 
 `✅` = no issues, `⚠️` = audit fixes required (MR opened/updated), `❌` = runner/system error (not “audit found CVEs”).
+
+For every repo with an open audit MR, the workflow creates or updates one security issue in the private Notion Tasks board. It matches the **Ticket Key** `audit-<owner/name>` (case insensitive), with a title fallback for older unkeyed cards. New cards start **ToDo**, **Dev** / **Security**, titled `<owner/name> Fix CVEs`. The full report and remediation instructions are formatted Markdown in the page body; the Kanban card shows only its title and category labels. Updating a ticket keeps its current Kanban status.
+
+Temporary Notion test path: run the **Test Notion** manual trigger to feed the five tasks from `temp.json` through the same ticket update flow. Repeated runs update those five cards. It does not run the audit or mark the day complete. Reprovision after editing `temp.json` to refresh the embedded fixture.
 
 After changing `AUDIT_REPOS`, restart n8n so the Code node picks up the new list: `docker compose up -d`.

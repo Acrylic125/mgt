@@ -10,5 +10,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["provision/workflows/**/*.ts", "provision/scripts/**/*.ts"]
+  "include": ["workflows/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"]
 }

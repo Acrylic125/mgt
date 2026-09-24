@@ -30,6 +30,8 @@ const completedStatusSchema = z.object({
   status: z.literal("completed"),
   auditResult: z.object({
     mrUrl: z.string().optional(),
+    mrBody: z.string().optional(),
+    mrBranch: z.string().optional(),
   }),
 });
 
@@ -55,7 +57,11 @@ function toClientResponse(row: typeof runners.$inferSelect) {
     if (row.mrUrl) {
       return completedStatusSchema.parse({
         status: "completed",
-        auditResult: { mrUrl: row.mrUrl },
+        auditResult: {
+          mrUrl: row.mrUrl,
+          mrBody: row.mrBody ?? "",
+          mrBranch: row.mrBranch ?? "audit",
+        },
       });
     }
 
@@ -85,6 +91,8 @@ export async function auditRepoRoutes(app: FastifyInstance) {
         status: "pending",
         message: null,
         mrUrl: null,
+        mrBody: null,
+        mrBranch: null,
         createdAt: now,
         updatedAt: now,
       })
@@ -173,6 +181,8 @@ export async function auditRepoRoutes(app: FastifyInstance) {
           status: "failed",
           message: report.message,
           mrUrl: null,
+          mrBody: null,
+          mrBranch: null,
           updatedAt: Date.now(),
         })
         .where(eq(runners.id, parsedParams.data.runnerId))
@@ -187,8 +197,16 @@ export async function auditRepoRoutes(app: FastifyInstance) {
     }
 
     let mrUrl = null;
+    let mrBody = null;
+    let mrBranch = null;
     if (report.auditResult.mrUrl !== undefined) {
       mrUrl = report.auditResult.mrUrl;
+    }
+    if (report.auditResult.mrBody !== undefined) {
+      mrBody = report.auditResult.mrBody;
+    }
+    if (report.auditResult.mrBranch !== undefined) {
+      mrBranch = report.auditResult.mrBranch;
     }
 
     db.update(runners)
@@ -196,6 +214,8 @@ export async function auditRepoRoutes(app: FastifyInstance) {
         status: "completed",
         message: null,
         mrUrl,
+        mrBody,
+        mrBranch,
         updatedAt: Date.now(),
       })
       .where(eq(runners.id, parsedParams.data.runnerId))
@@ -205,7 +225,7 @@ export async function auditRepoRoutes(app: FastifyInstance) {
       return reply.send(
         completedStatusSchema.parse({
           status: "completed",
-          auditResult: { mrUrl },
+          auditResult: { mrUrl, mrBody: mrBody ?? "", mrBranch: mrBranch ?? "audit" },
         }),
       );
     }

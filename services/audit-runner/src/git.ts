@@ -5,7 +5,7 @@ import { simpleGit } from "simple-git";
 import { env, gitHttpsExtraHeader, redact, repoName } from "./env.js";
 
 const WORKPAD = "/tmp/github/workpad";
-const AUDIT_BRANCH = "audit";
+export const AUDIT_BRANCH = "audit";
 
 function createGit(baseDir: string) {
   const gitEnv = { ...process.env };

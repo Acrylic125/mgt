@@ -48,15 +48,32 @@ const UpsertResultSchema = z.object({
   name: z.string(),
 });
 
+const ExistingWorkflowSchema = z.object({
+  nodes: z.array(z.object({
+    name: z.string(),
+    type: z.string(),
+    disabled: z.boolean().optional(),
+    credentials: z.record(z.string(), z.object({ id: z.string(), name: z.string() })).optional(),
+  })),
+});
+
 function cli(args: string[]) {
-  return execFileSync(
-    N8N_CLI,
-    [...args, '--url', env.N8N_URL, '--apiKey', env.N8N_API_KEY],
-    {
+  try {
+    return execFileSync(N8N_CLI, args, {
       encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'inherit'],
-    },
-  );
+      env: {
+        ...process.env,
+        N8N_URL: env.N8N_URL,
+        N8N_API_KEY: env.N8N_API_KEY,
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(error.message.replaceAll(env.N8N_API_KEY, '<REDACTED>'));
+    }
+    throw new Error('n8n CLI failed');
+  }
 }
 
 function discoverWorkflowFiles(filter?: string) {
@@ -118,10 +135,27 @@ function upsert(json: ReturnType<WorkflowBuilder['toJSON']>) {
 
   const dir = mkdtempSync(path.join(tmpdir(), 'mgt-provision-'));
   const file = path.join(dir, 'workflow.json');
-  writeFileSync(file, JSON.stringify(payload, null, 2));
 
   const existing = findByName(json.name);
   if (existing) {
+    const current = ExistingWorkflowSchema.parse(
+      JSON.parse(cli(['workflow', 'get', existing.id, '--format=json'])),
+    );
+    for (const node of payload.nodes) {
+      if (!node.disabled || node.credentials) continue;
+
+      const configured = current.nodes.find((item) => item.name === node.name && item.type === node.type);
+      let credentials = configured?.credentials;
+      if (!credentials && node.type === 'n8n-nodes-base.notion') {
+        credentials = current.nodes.find((item) => item.type === node.type && item.credentials?.notionApi)?.credentials;
+      }
+      if (credentials) {
+        node.credentials = credentials;
+        node.disabled = false;
+      }
+    }
+
+    writeFileSync(file, JSON.stringify(payload, null, 2));
     const updated = UpsertResultSchema.parse(
       JSON.parse(
         cli(['workflow', 'update', existing.id, '--file', file, '--format=json']),
@@ -131,6 +165,7 @@ function upsert(json: ReturnType<WorkflowBuilder['toJSON']>) {
     return;
   }
 
+  writeFileSync(file, JSON.stringify(payload, null, 2));
   const created = UpsertResultSchema.parse(
     JSON.parse(cli(['workflow', 'create', '--file', file, '--format=json'])),
   );

@@ -1,6 +1,6 @@
 import { auditPackages, buildPrBody } from "./audit.js";
 import { env, redact } from "./env.js";
-import { commitAndPush, hasWorktreeChanges, prepareRepo } from "./git.js";
+import { AUDIT_BRANCH, commitAndPush, hasWorktreeChanges, prepareRepo } from "./git.js";
 import { findOpenAuditPull, upsertAuditPullRequest } from "./github.js";
 import { reportTerminal, startHeartbeat } from "./report.js";
 
@@ -12,7 +12,7 @@ async function run() {
   if (!(await hasWorktreeChanges(git))) {
     const existing = await findOpenAuditPull();
     if (existing) {
-      return existing.html_url;
+      return { mrUrl: existing.html_url, mrBody: existing.body ?? "" };
     }
     return;
   }
@@ -27,11 +27,11 @@ async function run() {
 
 async function main() {
   const stopHeartbeat = startHeartbeat();
-  let mrUrl: string | undefined;
+  let mr: Awaited<ReturnType<typeof run>>;
   let failedMessage: string | undefined;
 
   try {
-    mrUrl = await run();
+    mr = await run();
   } catch (error) {
     failedMessage = "Unexpected error";
     if (error instanceof Error) {
@@ -46,8 +46,11 @@ async function main() {
     process.exit(1);
   }
 
-  if (mrUrl) {
-    await reportTerminal({ status: "completed", auditResult: { mrUrl } });
+  if (mr) {
+    await reportTerminal({
+      status: "completed",
+      auditResult: { ...mr, mrBranch: AUDIT_BRANCH },
+    });
   } else {
     await reportTerminal({ status: "completed", auditResult: {} });
   }

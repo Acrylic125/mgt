@@ -1,6 +1,9 @@
-import { expr, newCredential, node, trigger, workflow } from '@n8n/workflow-sdk';
+import { expr, ifElse, newCredential, nextBatch, node, splitInBatches, trigger, workflow } from '@n8n/workflow-sdk';
 import { auditScript } from './audit-script';
 import { markDayCompleteScript, skipIfDoneTodayScript } from './day-gate';
+import { notionTasksScript } from './notion-tasks';
+import { testNotionScript } from './test-notion';
+import { ticketPlanScript } from './ticket-plan';
 
 const everyFifteen = trigger({
   type: 'n8n-nodes-base.scheduleTrigger',
@@ -40,6 +43,12 @@ const manual = trigger({
   config: { name: 'Manual Trigger' },
 });
 
+const testNotion = trigger({
+  type: 'n8n-nodes-base.manualTrigger',
+  version: 1,
+  config: { name: 'Test Notion' },
+});
+
 const skipIfDoneToday = node({
   type: 'n8n-nodes-base.code',
   version: 2,
@@ -77,11 +86,173 @@ const sendTelegram = node({
       text: expr('{{ $json.text }}'),
       additionalFields: {
         appendAttribution: false,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
       },
     },
     credentials: {
       telegramApi: newCredential('Telegram account', 'pYoyBO3RKqURGq6h'),
+    },
+  },
+});
+
+const prepareNotionTasks = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Prepare security tasks',
+    parameters: {
+      language: 'javaScript',
+      ...notionTasksScript,
+    },
+  },
+});
+
+const loadTestNotionTasks = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Load temp.json tasks',
+    parameters: {
+      language: 'javaScript',
+      ...testNotionScript,
+    },
+  },
+});
+
+const listExistingTickets = node({
+  type: 'n8n-nodes-base.notion',
+  version: 3,
+  config: {
+    name: 'List existing security tickets',
+    disabled: true,
+    executeOnce: true,
+    alwaysOutputData: true,
+    parameters: {
+      authentication: 'apiKey',
+      resource: 'databasePage',
+      operation: 'getAll',
+      dataSourceId: {
+        mode: 'id',
+        value: '3e2d6e07-0119-80fe-85b1-000b276fc20b',
+      },
+      returnAll: true,
+      filterType: 'none',
+      simple: false,
+    },
+  },
+});
+
+const planTicketWrites = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Plan security ticket writes',
+    parameters: {
+      language: 'javaScript',
+      ...ticketPlanScript,
+    },
+  },
+});
+
+const processTickets = splitInBatches({
+  version: 3,
+  config: {
+    name: 'Process security tickets',
+    parameters: { batchSize: 1 },
+  },
+});
+
+const ticketExists = ifElse({
+  version: 2.2,
+  config: {
+    name: 'Security ticket exists?',
+    parameters: {
+      conditions: {
+        options: { caseSensitive: true, typeValidation: 'strict' },
+        conditions: [{
+          leftValue: expr('{{ $json.pageId }}'),
+          rightValue: '',
+          operator: { type: 'string', operation: 'notEmpty' },
+        }],
+        combinator: 'and',
+      },
+    },
+  },
+});
+
+const createNotionTask = node({
+  type: 'n8n-nodes-base.notion',
+  version: 3,
+  config: {
+    name: 'Create security task',
+    disabled: true,
+    parameters: {
+      authentication: 'apiKey',
+      resource: 'databasePage',
+      operation: 'create',
+      dataSourceId: {
+        mode: 'id',
+        value: '3e2d6e07-0119-80fe-85b1-000b276fc20b',
+      },
+      title: expr('{{ $json.title }}'),
+      propertiesUi: {
+        propertyValues: [
+          { key: 'Ticket Key|rich_text', textContent: expr('{{ $json.key }}') },
+          { key: 'Category|select', selectValue: 'Dev' },
+          { key: 'Category Label|select', selectValue: 'Security' },
+          { key: 'Status|select', selectValue: 'ToDo' },
+        ],
+      },
+      contentType: 'markdown',
+      markdown: expr('{{ $json.description }}'),
+      simple: true,
+    },
+  },
+});
+
+const updateNotionTask = node({
+  type: 'n8n-nodes-base.notion',
+  version: 3,
+  config: {
+    name: 'Update security task',
+    disabled: true,
+    parameters: {
+      authentication: 'apiKey',
+      resource: 'databasePage',
+      operation: 'update',
+      pageId: {
+        mode: 'id',
+        value: expr('{{ $json.pageId }}'),
+      },
+      propertiesUi: {
+        propertyValues: [
+          { key: 'Name|title', title: expr('{{ $json.title }}') },
+          { key: 'Ticket Key|rich_text', textContent: expr('{{ $json.key }}') },
+          { key: 'Category|select', selectValue: 'Dev' },
+          { key: 'Category Label|select', selectValue: 'Security' },
+        ],
+      },
+      simple: true,
+    },
+  },
+});
+
+const replaceNotionTaskBody = node({
+  type: 'n8n-nodes-base.notion',
+  version: 3,
+  config: {
+    name: 'Replace security task report',
+    disabled: true,
+    parameters: {
+      authentication: 'apiKey',
+      resource: 'page',
+      operation: 'updateMarkdown',
+      pageId: {
+        mode: 'id',
+        value: expr('{{ $json.id }}'),
+      },
+      markdownUpdateType: 'replace_content',
+      markdown: expr('{{ $("Plan security ticket writes").item.json.description }}'),
     },
   },
 });
@@ -99,6 +270,11 @@ const markDayComplete = node({
   },
 });
 
+processTickets.onDone(markDayComplete);
+processTickets.onEachBatch(ticketExists
+  .onTrue!(updateNotionTask.to!(replaceNotionTaskBody.to!(nextBatch(processTickets))))
+  .onFalse!(createNotionTask.to!(nextBatch(processTickets))));
+
 export default workflow('audit-repo', 'Repo Audit', {
   timezone: 'Asia/Singapore',
   executionTimeout: 7200,
@@ -111,6 +287,12 @@ export default workflow('audit-repo', 'Repo Audit', {
   .to(runAudit)
   .add(manual)
   .to(runAudit)
+  .add(testNotion)
+  .to(loadTestNotionTasks)
+  .to(listExistingTickets)
   .add(runAudit)
   .to(sendTelegram)
-  .to(markDayComplete);
+  .to(prepareNotionTasks)
+  .to(listExistingTickets)
+  .to(planTicketWrites)
+  .to(processTickets);

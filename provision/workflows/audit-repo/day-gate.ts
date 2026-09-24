@@ -13,6 +13,9 @@ return [{ json: { today: today } }];
 export const markDayCompleteScript = {
   mode: 'runOnceForAllItems' as const,
   jsCode: `
+if ($('Test Notion').isExecuted) {
+  return $input.all();
+}
 const staticData = $getWorkflowStaticData('global');
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
 staticData.lastCompletedDay = today;
