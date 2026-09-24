@@ -2,7 +2,6 @@ import { expr, ifElse, newCredential, nextBatch, node, splitInBatches, trigger, 
 import { auditScript } from './audit-script';
 import { markDayCompleteScript, skipIfDoneTodayScript } from './day-gate';
 import { notionTasksScript } from './notion-tasks';
-import { testNotionScript } from './test-notion';
 import { ticketPlanScript } from './ticket-plan';
 
 const everyFifteen = trigger({
@@ -41,12 +40,6 @@ const manual = trigger({
   type: 'n8n-nodes-base.manualTrigger',
   version: 1,
   config: { name: 'Manual Trigger' },
-});
-
-const testNotion = trigger({
-  type: 'n8n-nodes-base.manualTrigger',
-  version: 1,
-  config: { name: 'Test Notion' },
 });
 
 const skipIfDoneToday = node({
@@ -103,18 +96,6 @@ const prepareNotionTasks = node({
     parameters: {
       language: 'javaScript',
       ...notionTasksScript,
-    },
-  },
-});
-
-const loadTestNotionTasks = node({
-  type: 'n8n-nodes-base.code',
-  version: 2,
-  config: {
-    name: 'Load temp.json tasks',
-    parameters: {
-      language: 'javaScript',
-      ...testNotionScript,
     },
   },
 });
@@ -287,9 +268,6 @@ export default workflow('audit-repo', 'Repo Audit', {
   .to(runAudit)
   .add(manual)
   .to(runAudit)
-  .add(testNotion)
-  .to(loadTestNotionTasks)
-  .to(listExistingTickets)
   .add(runAudit)
   .to(sendTelegram)
   .to(prepareNotionTasks)

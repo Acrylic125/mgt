@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { testNotionScript } from '../workflows/audit-repo/test-notion';
 import { ticketPlanScript } from '../workflows/audit-repo/ticket-plan';
 
-test('test fixture updates keyed tickets and creates only missing tickets', () => {
-  const fixtureItems = runInNewContext(`(function() { ${testNotionScript.jsCode} })()`);
-  const existing = fixtureItems.slice(0, 4).map((item: { json: { key: string; title: string } }, index: number) => ({
+const tickets = ['Acrylic125/mgt', 'Acrylic125/fstars', 'Acrylic125/fntu'].map((repo) => ({
+  json: {
+    key: `audit-${repo}`,
+    title: `${repo} Fix CVEs`,
+    description: `Audit report for ${repo}`,
+  },
+}));
+
+test('audit tickets update keyed pages and create missing pages', () => {
+  const existing = tickets.slice(0, 2).map((item, index) => ({
     json: {
       id: `existing-page-${index}`,
       properties: {
@@ -17,26 +23,22 @@ test('test fixture updates keyed tickets and creates only missing tickets', () =
   }));
   const output = runInNewContext(`(function() { ${ticketPlanScript.jsCode} })()`, {
     $: (name: string) => {
-      if (name === 'Test Notion') return { isExecuted: true };
-      if (name === 'Load temp.json tasks') return { all: () => fixtureItems };
+      if (name === 'Prepare security tasks') return { all: () => tickets };
       throw new Error(`Unexpected node: ${name}`);
     },
     $input: { all: () => existing },
   });
-  assert.equal(output.length, 5);
+  assert.equal(output.length, 3);
   assert.deepEqual(Array.from(output, (item: { json: { pageId: string } }) => item.json.pageId), [
     'existing-page-0',
     'existing-page-1',
-    'existing-page-2',
-    'existing-page-3',
     '',
   ]);
   assert.equal(output[0].json.key, 'audit-Acrylic125/mgt');
 });
 
 test('duplicate ticket keys stop the write plan', () => {
-  const fixtureItems = runInNewContext(`(function() { ${testNotionScript.jsCode} })()`);
-  const key = fixtureItems[0].json.key;
+  const key = tickets[0].json.key;
   const existing = [1, 2].map((id) => ({
     json: {
       id: `duplicate-${id}`,
@@ -46,8 +48,7 @@ test('duplicate ticket keys stop the write plan', () => {
 
   assert.throws(() => runInNewContext(`(function() { ${ticketPlanScript.jsCode} })()`, {
     $: (name: string) => {
-      if (name === 'Test Notion') return { isExecuted: true };
-      if (name === 'Load temp.json tasks') return { all: () => fixtureItems };
+      if (name === 'Prepare security tasks') return { all: () => tickets };
       throw new Error(`Unexpected node: ${name}`);
     },
     $input: { all: () => existing },

@@ -1,7 +1,5 @@
 const jsCode = `
-const source = $('Test Notion').isExecuted
-  ? $('Load temp.json tasks').all()
-  : $('Prepare security tasks').all();
+const source = $('Prepare security tasks').all();
 const existingByKey = new Map();
 const legacyByTitle = new Map();
 

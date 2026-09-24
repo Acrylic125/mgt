@@ -92,6 +92,4 @@ For each repo in `AUDIT_REPOS` (max 3 in flight):
 
 For every repo with an open audit MR, the workflow creates or updates one security issue in the private Notion Tasks board. It matches the **Ticket Key** `audit-<owner/name>` (case insensitive), with a title fallback for older unkeyed cards. New cards start **ToDo**, **Dev** / **Security**, titled `<owner/name> Fix CVEs`. The full report and remediation instructions are formatted Markdown in the page body; the Kanban card shows only its title and category labels. Updating a ticket keeps its current Kanban status.
 
-Temporary Notion test path: run the **Test Notion** manual trigger to feed the five tasks from `temp.json` through the same ticket update flow. Repeated runs update those five cards. It does not run the audit or mark the day complete. Reprovision after editing `temp.json` to refresh the embedded fixture.
-
 After changing `AUDIT_REPOS`, restart n8n so the Code node picks up the new list: `docker compose up -d`.
