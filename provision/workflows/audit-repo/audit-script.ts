@@ -3,7 +3,7 @@
 // replaces the letter s ("itsme" → "it me").
 const jsCode = `
 const LF = String.fromCharCode(10);
-const CONCURRENCY = 3;
+const CONCURRENCY = 1;
 const POLL_MS = 5000;
 // Per-repo cap so a stuck runner cannot hold the daily execution forever.
 const MAX_WAIT_MS = 90 * 60 * 1000;
