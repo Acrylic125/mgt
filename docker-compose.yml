@@ -15,6 +15,7 @@ services:
       - N8N_SECURE_COOKIE=false
       # Allow workflow expressions to read $env.* (chat ID, runner URL, etc.)
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - NODE_FUNCTION_ALLOW_EXTERNAL=cheerio
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - AUDIT_REPOS=${AUDIT_REPOS}
       - N8N_RUNNER_SERVICE_URL=http://n8n-runner-service:3000

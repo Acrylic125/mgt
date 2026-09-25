@@ -47,6 +47,7 @@ The BotFather token is not an env var for Compose or provision. Paste it into th
 | **Test** | **Telegram API** credential `Telegram Bot` — Access Token from [@BotFather](https://t.me/BotFather). |
 | **Repo Audit** | **Telegram API** credential `Telegram account`. |
 | **Repo Audit** | **Notion API** credential selected directly on **Create security task**; grant that integration access to the Tasks database. |
+| **NTU Schedule Change Detection** | **Telegram API** credential `Telegram account`. |
 
 ## Commands
 
@@ -55,6 +56,8 @@ The BotFather token is not an env var for Compose or provision. Paste it into th
 | `docker compose up -d --build` | Build images and start n8n + runner service |
 | `docker compose down` | Stop n8n |
 | `pnpm --dir provision provision` | Upsert all `provision/workflows/*/workflow.ts` |
+| `pnpm --dir provision provision ntu-schedule-change-detection` | Upsert only the NTU schedule workflow |
+| `pnpm --dir provision verify:ntu-schedule` | Check that the NTU schedule workflow exists in n8n; exits nonzero if absent |
 
 `docker compose up --build` also builds `mgt-audit-runner:latest`. That image is not left running; `n8n-runner-service` starts it per audit via the Docker socket.
 
@@ -93,3 +96,9 @@ For each repo in `AUDIT_REPOS` (max 3 in flight):
 For every repo with an open audit MR, the workflow creates or updates one security issue in the private Notion Tasks board. It matches the **Ticket Key** `audit-<owner/name>` (case insensitive), with a title fallback for older unkeyed cards. New cards start **ToDo**, **Dev** / **Security**, titled `<owner/name> Fix CVEs`. The full report and remediation instructions are formatted Markdown in the page body; the Kanban card shows only its title and category labels. Updating a ticket keeps its current Kanban status.
 
 After changing `AUDIT_REPOS`, restart n8n so the Code node picks up the new list: `docker compose up -d`.
+
+## NTU Schedule Change Detection
+
+The workflow checks [NTU's class schedule](https://wish.wis.ntu.edu.sg/webexe/owa/aus_schedule.main) daily at **08:00 Asia/Singapore**. It reads the selected option in the `acadsem` select with Cheerio and stores its value in n8n workflow static data. The first successful check and any later change send `NTU Schedule Updated!` to `TELEGRAM_CHAT_ID`; an unchanged value sends nothing. A missing selected option fails the run without replacing the stored value.
+
+Build the n8n image with `docker compose up -d --build` so the Code node can load Cheerio, then run `pnpm --dir provision provision ntu-schedule-change-detection`. Attach the `Telegram account` credential if needed and activate **NTU Schedule Change Detection** in n8n. Run `pnpm --dir provision verify:ntu-schedule` to confirm the workflow exists on the configured n8n instance.

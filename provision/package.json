@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "provision": "tsx scripts/provision.ts",
+    "verify:ntu-schedule": "tsx scripts/verify-ntu-schedule.ts",
     "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.1",
+    "cheerio": "1.2.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   }
